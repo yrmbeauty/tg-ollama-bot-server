@@ -124,7 +124,11 @@ const server = Bun.serve({
     try {
       const tgBody: TgBody = await req.json()
       if (tgBody?.message?.chat?.type !== "private" && tgBody?.message?.text?.startsWith("@pk_mnbvc_bot")) {
-        generateAnswerToUser(tgBody.message);
+        const message = {
+          ...tgBody.message,
+          text: tgBody.message.text.replace(/@pk_mnbvc_bot/g,'')
+        }
+        generateAnswerToUser(message);
       } else if (tgBody?.message?.chat?.type === "private" && tgBody?.message) {
         generateAnswerToUser(tgBody.message);
       }
