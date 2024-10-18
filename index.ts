@@ -64,7 +64,7 @@ type AiBody = {
 }
 
 async function getImage(photo: Photo[]) {
-  const file_id = photo[0]?.file_id;
+  const file_id = photo[2]?.file_id || photo[1]?.file_id || photo[0]?.file_id || "";
 
   const sizeRes: {
     ok: boolean,
@@ -155,11 +155,15 @@ const server = Bun.serve({
   async fetch(req) {
     try {
       const tgBody: TgBody = await req.json()
-      if (tgBody?.message?.text || tgBody?.message?.caption) {
-        const text = tgBody.message?.text || tgBody.message?.caption
-        const message = {
-          ...tgBody.message,
-          text: text?.replace(/@pk_mnbvc_bot/g,'')
+
+      if (tgBody?.message?.chat?.type === "private") {
+        tgBody?.message && await generateAnswerToUser(tgBody?.message);
+      } else if (tgBody?.message?.text?.includes("@pk_mnbvc_bot") || tgBody?.message?.caption?.includes("@pk_mnbvc_bot")) {
+        const text = tgBody.message?.text || tgBody.message?.caption;
+        const cleanText = text?.replace(/@pk_mnbvc_bot/g,'');
+        const message: Msg = {
+          ...tgBody?.message,
+          text: cleanText
         }
         await generateAnswerToUser(message);
       }
