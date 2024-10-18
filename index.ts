@@ -1,3 +1,5 @@
+import dayjs from "dayjs"
+
 type From = {
   id: number,
   is_bot: boolean,
@@ -36,10 +38,15 @@ type AiBody = {
   eval_duration: number
 }
 
-async function generateAnswerToUser(req: Request) {
-  const tgBody: TgBody = await req.json()
+type Users = {
+  [id: string]: AiBody["context"];
+}
+
+let users: Users = {};
+
+async function generateAnswerToUser(tgBody: TgBody) {
   if (!tgBody?.message?.text) throw new Error("empty tgBody.message.text");
-  console.log("tgBody", tgBody.message.text);
+  console.log(dayjs().format('YYYY-MM-DD HH:mm:ss'),"tgBody", tgBody.message.text);
 
   const aiBody: AiBody = await fetch(new Request(Bun.env.PK_URL + "/api/generate", {
     method: "POST",
@@ -50,11 +57,13 @@ async function generateAnswerToUser(req: Request) {
     body: JSON.stringify({
       model: "llama3.2",
       prompt: tgBody.message.text,
-      stream: false
+      stream: false,
+      context: users[tgBody.message.from.id]
     })
   }))
   .then(response => response.json())
-  .then(body => body);
+
+  users[tgBody.message.from.id] = aiBody.context;
 
   await fetch(new Request(Bun.env.BOT_URL + "/sendMessage", {
     method: "POST",
@@ -72,8 +81,14 @@ async function generateAnswerToUser(req: Request) {
 const server = Bun.serve({
   port: 1400,
   async fetch(req) {
-    generateAnswerToUser(req);
-    return new Response("200");
+    try {
+      const tgBody: TgBody = await req.json()
+      generateAnswerToUser(tgBody);
+    } catch (error) {
+      console.error(error)
+    } finally {
+      return new Response("200");
+    }
   },
 });
 
