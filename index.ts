@@ -176,7 +176,9 @@ const server = Bun.serve({
           text
         }
         message && await generateAnswerToUser(message);
-      } else if (tgBody?.message?.text?.includes("@pk_mnbvc_bot") || tgBody?.message?.caption?.includes("@pk_mnbvc_bot")) {
+      } else if (tgBody?.message?.text?.includes("@pk_mnbvc_bot")
+        || tgBody?.message?.caption?.includes("@pk_mnbvc_bot")
+        || tgBody?.message?.reply_to_message?.from.username === "pk_mnbvc_bot") {
         const text = tgBody.message?.text || tgBody.message?.caption;
         const cleanText = text?.replace(/@pk_mnbvc_bot/g,'');
         const message: Msg = {
