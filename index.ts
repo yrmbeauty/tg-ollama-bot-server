@@ -10,6 +10,14 @@ type User = {
   language_code: string,
 }
 
+type Photo = {
+  file_id: string,
+  file_unique_id: string,
+  file_size: number,
+  width: number,
+  height: number,
+}
+
 type Msg = {
   message_id: number,
   from: User,
@@ -22,6 +30,7 @@ type Msg = {
   new_chat_members: [
     [User]
   ],
+  photo: Photo[],
 }
 
 type InlineQuery = {
@@ -53,13 +62,37 @@ type AiBody = {
   eval_duration: number
 }
 
-type Users = {
-  [id: string]: AiBody["context"];
+async function getImage(photo: Photo[]) {
+  const file_id = photo[0]?.file_id;
+
+  const sizeRes: {
+    ok: boolean,
+    result: {
+      file_id: string,
+      file_unique_id: string,
+      file_size: number,
+      file_path: string
+    }
+  } = await fetch(new Request(Bun.env.BOT_URL + "/getFile" + `?file_id=${file_id}`))
+    .then(response => response.json());
+
+  const fileRes = await fetch(new Request("https://api.telegram.org/file/bot" + Bun.env.BOT_TOKEN + "/" + sizeRes.result.file_path, {
+    method: "GET",
+    headers: {
+      'Content-Type': 'application/jpg',
+      'Content-Disposition': 'attachment; filename="filename.jpg"'
+    }
+  }))
+  .then(async response => {
+    return new Buffer(await response.arrayBuffer()).toString('base64');
+  });
+
+  return fileRes;
 }
 
-let users: Users = {};
-
 async function generateAnswerToUser(message: Msg) {
+  const iamgeBase64 = message?.photo?.length && await getImage(message?.photo);
+
   const aiBody: AiBody = await fetch(new Request(Bun.env.PK_URL + "/api/generate", {
     method: "POST",
     headers: {
@@ -67,15 +100,15 @@ async function generateAnswerToUser(message: Msg) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: "llama3.2",
+      model: "llava:13b",
       prompt: message.text,
       stream: false,
-      context: users[message.from.id]
+      images: iamgeBase64 ? [iamgeBase64] : null
     })
   }))
   .then(response => response.json())
 
-  users[message.from.id] = aiBody.context;
+  if ((aiBody as any).errors) throw new Error((aiBody as any).errors);
 
   await fetch(new Request(Bun.env.BOT_URL + "/sendMessage", {
     method: "POST",
@@ -98,7 +131,7 @@ async function greetMembers(message: Msg) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: "llama3.2",
+      model: "llava:13b",
       prompt: "Тебя только что добавили в группу в телеграме, поздоровайся со всеми",
       stream: false,
     })
@@ -128,11 +161,11 @@ const server = Bun.serve({
           ...tgBody.message,
           text: tgBody.message.text.replace(/@pk_mnbvc_bot/g,'')
         }
-        generateAnswerToUser(message);
+        await generateAnswerToUser(message);
       } else if (tgBody?.message?.chat?.type === "private" && tgBody?.message) {
-        generateAnswerToUser(tgBody.message);
+        await generateAnswerToUser(tgBody.message);
       }
-      tgBody?.message?.new_chat_participant && greetMembers(tgBody?.message);
+      tgBody?.message?.new_chat_participant && await greetMembers(tgBody?.message);
     } catch (error) {
       console.error(error)
     } finally {
