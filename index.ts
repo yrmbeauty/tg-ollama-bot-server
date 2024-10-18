@@ -136,7 +136,7 @@ async function greetMembers(message: Msg) {
     })
   }))
   .then(response => response.json())
-
+  
   await fetch(new Request(Bun.env.BOT_URL + "/sendMessage", {
     method: "POST",
     headers: {
@@ -157,7 +157,12 @@ const server = Bun.serve({
       const tgBody: TgBody = await req.json()
 
       if (tgBody?.message?.chat?.type === "private") {
-        tgBody?.message && await generateAnswerToUser(tgBody?.message);
+        const text = tgBody.message?.text || tgBody.message?.caption;
+        const message: Msg = {
+          ...tgBody?.message,
+          text
+        }
+        message && await generateAnswerToUser(message);
       } else if (tgBody?.message?.text?.includes("@pk_mnbvc_bot") || tgBody?.message?.caption?.includes("@pk_mnbvc_bot")) {
         const text = tgBody.message?.text || tgBody.message?.caption;
         const cleanText = text?.replace(/@pk_mnbvc_bot/g,'');
