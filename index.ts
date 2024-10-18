@@ -85,14 +85,30 @@ async function getImage(photo: Photo[]) {
     }
   }))
   .then(async response => {
-    return new Buffer(await response.arrayBuffer()).toString('base64');
+    return Buffer.from(await response.arrayBuffer()).toString('base64');
   });
 
   return fileRes;
 }
 
 async function generateAnswerToUser(message: Msg) {
-  const iamgeBase64 = message?.photo?.length && await getImage(message?.photo);
+  const photo = message.reply_to_message?.photo || message?.photo;
+  const iamgeBase64 = photo && await getImage(photo);
+
+  const messages = [
+    {
+      role: message.reply_to_message?.from.username === "pk_mnbvc_bot" ? "assistant" : "user",
+      content: message.reply_to_message?.text || message.reply_to_message?.caption
+    }
+  ];
+
+  const body = {
+    model: "llava:13b",
+    messages: message.reply_to_message ? messages : null,
+    prompt: message.text,
+    stream: false,
+    images: iamgeBase64 ? [iamgeBase64] : null
+  }
 
   const aiBody: AiBody = await fetch(new Request(Bun.env.PK_URL + "/api/generate", {
     method: "POST",
@@ -100,14 +116,11 @@ async function generateAnswerToUser(message: Msg) {
       'Accept': 'application/json',
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      model: "llava:13b",
-      prompt: message.text,
-      stream: false,
-      images: iamgeBase64 ? [iamgeBase64] : null
-    })
+    body: JSON.stringify(body)
   }))
-  .then(response => response.json())
+  .then(response => response.json());
+
+  if (aiBody.done && aiBody.done_reason === "load") throw new Error("Empty promt request");
 
   await fetch(new Request(Bun.env.BOT_URL + "/sendMessage", {
     method: "POST",
