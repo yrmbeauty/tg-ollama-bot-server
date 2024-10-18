@@ -24,7 +24,8 @@ type Msg = {
   chat: User,
   date: number,
   reply_to_message?: Msg
-  text: string,
+  text?: string,
+  caption?: string,
   new_chat_participant: [User],
   new_chat_member: [User],
   new_chat_members: [
@@ -108,8 +109,6 @@ async function generateAnswerToUser(message: Msg) {
   }))
   .then(response => response.json())
 
-  if ((aiBody as any).errors) throw new Error((aiBody as any).errors);
-
   await fetch(new Request(Bun.env.BOT_URL + "/sendMessage", {
     method: "POST",
     headers: {
@@ -156,14 +155,13 @@ const server = Bun.serve({
   async fetch(req) {
     try {
       const tgBody: TgBody = await req.json()
-      if (tgBody?.message?.chat?.type !== "private" && tgBody?.message?.text?.startsWith("@pk_mnbvc_bot")) {
+      if (tgBody?.message?.text || tgBody?.message?.caption) {
+        const text = tgBody.message?.text || tgBody.message?.caption
         const message = {
           ...tgBody.message,
-          text: tgBody.message.text.replace(/@pk_mnbvc_bot/g,'')
+          text: text?.replace(/@pk_mnbvc_bot/g,'')
         }
         await generateAnswerToUser(message);
-      } else if (tgBody?.message?.chat?.type === "private" && tgBody?.message) {
-        await generateAnswerToUser(tgBody.message);
       }
       tgBody?.message?.new_chat_participant && await greetMembers(tgBody?.message);
     } catch (error) {
