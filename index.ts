@@ -6,6 +6,7 @@ type User = {
   first_name: string,
   last_name: string,
   username: string,
+  type?: string,
   language_code: string,
 }
 
@@ -98,7 +99,7 @@ async function greetMembers(message: Msg) {
     },
     body: JSON.stringify({
       model: "llama3.2",
-      prompt: "Тебя только что добавили в новую группу в телеграме, поздоровайся со всеми",
+      prompt: "Тебя только что добавили в группу в телеграме, поздоровайся со всеми",
       stream: false,
     })
   }))
@@ -122,12 +123,16 @@ const server = Bun.serve({
   async fetch(req) {
     try {
       const tgBody: TgBody = await req.json()
-      tgBody?.message?.text && generateAnswerToUser(tgBody.message);
+      if (tgBody?.message?.chat?.type !== "private" && tgBody?.message?.text?.startsWith("@pk_mnbvc_bot")) {
+        generateAnswerToUser(tgBody.message);
+      } else if (tgBody?.message?.chat?.type === "private" && tgBody?.message) {
+        generateAnswerToUser(tgBody.message);
+      }
       tgBody?.message?.new_chat_participant && greetMembers(tgBody?.message);
     } catch (error) {
       console.error(error)
     } finally {
-      console.log("Response status code: 200");
+      console.log(dayjs().format('YYYY-MM-DD HH:mm:ss'), "Response status code: 200");
       return new Response("200");
     }
   },
