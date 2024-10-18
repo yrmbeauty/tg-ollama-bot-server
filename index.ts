@@ -1,6 +1,6 @@
 import dayjs from "dayjs"
 
-type From = {
+type User = {
   id: number,
   is_bot: boolean,
   first_name: string,
@@ -11,16 +11,30 @@ type From = {
 
 type Msg = {
   message_id: number,
-  from: From,
-  chat: From,
+  from: User,
+  chat: User,
   date: number,
   reply_to_message?: Msg
   text: string,
+  new_chat_participant: [User],
+  new_chat_member: [User],
+  new_chat_members: [
+    [User]
+  ],
+}
+
+type InlineQuery = {
+  id: number,
+  from: User,
+  chat_type: string,
+  query: string,
+  offset: string,
 }
 
 type TgBody = {
   update_id: number,
-  message: Msg
+  message?: Msg
+  inline_query?: InlineQuery
 }
 
 type AiBody = {
@@ -44,10 +58,7 @@ type Users = {
 
 let users: Users = {};
 
-async function generateAnswerToUser(tgBody: TgBody) {
-  if (!tgBody?.message?.text) throw new Error("empty tgBody.message.text");
-  console.log(dayjs().format('YYYY-MM-DD HH:mm:ss'),"tgBody", tgBody.message.text);
-
+async function generateAnswerToUser(message: Msg) {
   const aiBody: AiBody = await fetch(new Request(Bun.env.PK_URL + "/api/generate", {
     method: "POST",
     headers: {
@@ -56,14 +67,14 @@ async function generateAnswerToUser(tgBody: TgBody) {
     },
     body: JSON.stringify({
       model: "llama3.2",
-      prompt: tgBody.message.text,
+      prompt: message.text,
       stream: false,
-      context: users[tgBody.message.from.id]
+      context: users[message.from.id]
     })
   }))
   .then(response => response.json())
 
-  users[tgBody.message.from.id] = aiBody.context;
+  users[message.from.id] = aiBody.context;
 
   await fetch(new Request(Bun.env.BOT_URL + "/sendMessage", {
     method: "POST",
@@ -72,7 +83,35 @@ async function generateAnswerToUser(tgBody: TgBody) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      chat_id: tgBody.message.chat.id,
+      chat_id: message.chat.id,
+      text: aiBody.response
+    })
+  }));
+}
+
+async function greetMembers(message: Msg) {
+  const aiBody: AiBody = await fetch(new Request(Bun.env.PK_URL + "/api/generate", {
+    method: "POST",
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: "llama3.2",
+      prompt: "Тебя только что добавили в новую группу в телеграме, поздоровайся со всеми",
+      stream: false,
+    })
+  }))
+  .then(response => response.json())
+
+  await fetch(new Request(Bun.env.BOT_URL + "/sendMessage", {
+    method: "POST",
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      chat_id: message.chat.id,
       text: aiBody.response
     })
   }));
@@ -83,10 +122,12 @@ const server = Bun.serve({
   async fetch(req) {
     try {
       const tgBody: TgBody = await req.json()
-      generateAnswerToUser(tgBody);
+      tgBody?.message?.text && generateAnswerToUser(tgBody.message);
+      tgBody?.message?.new_chat_participant && greetMembers(tgBody?.message);
     } catch (error) {
       console.error(error)
     } finally {
+      console.log("Response status code: 200");
       return new Response("200");
     }
   },
