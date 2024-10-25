@@ -92,22 +92,10 @@ async function getImage(photo: Photo[]) {
 }
 
 async function generateAnswerToUser(message: Msg) {
-  const photo = message.reply_to_message?.photo || message?.photo;
-  const iamgeBase64 = photo && await getImage(photo);
-
-  const messages = [
-    {
-      role: message.reply_to_message?.from.username === "pk_mnbvc_bot" ? "assistant" : "user",
-      content: message.reply_to_message?.text || message.reply_to_message?.caption
-    }
-  ];
-
   const body = {
-    model: "llava:13b",
-    messages: message.reply_to_message ? messages : null,
+    model: "dolphin-mistral:latest",
     prompt: message.text,
     stream: false,
-    images: iamgeBase64 ? [iamgeBase64] : null
   }
 
   const aiBody: AiBody = await fetch(new Request(Bun.env.PK_URL + "/api/generate", {
@@ -143,7 +131,7 @@ async function greetMembers(message: Msg) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: "llava:13b",
+      model: "dolphin-mistral:latest",
       prompt: "Тебя только что добавили в группу в телеграме, поздоровайся со всеми",
       stream: false,
     })
