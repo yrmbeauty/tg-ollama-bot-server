@@ -92,13 +92,25 @@ async function getImage(photo: Photo[]) {
 }
 
 async function generateAnswerToUser(message: Msg) {
+  const photo = message.reply_to_message?.photo || message?.photo;
+  const iamgeBase64 = photo && await getImage(photo);
+
+  const messages = [
+    {
+      role: message.reply_to_message?.from.username === Bun.env.BOT_NAME ? "assistant" : "user",
+      content: message.reply_to_message?.text || message.reply_to_message?.caption
+    }
+  ];
+
   const body = {
-    model: "dolphin-mistral:latest",
+    model: "llava:13b",
+    messages: message.reply_to_message ? messages : null,
     prompt: message.text,
     stream: false,
+    images: iamgeBase64 ? [iamgeBase64] : null
   }
 
-  const aiBody: AiBody = await fetch(new Request(Bun.env.PK_URL + "/api/generate", {
+  const aiBody: AiBody = await fetch(new Request(Bun.env.OLLAMA_URL + "/api/generate", {
     method: "POST",
     headers: {
       'Accept': 'application/json',
@@ -124,14 +136,14 @@ async function generateAnswerToUser(message: Msg) {
 }
 
 async function greetMembers(message: Msg) {
-  const aiBody: AiBody = await fetch(new Request(Bun.env.PK_URL + "/api/generate", {
+  const aiBody: AiBody = await fetch(new Request(Bun.env.OLLAMA_URL + "/api/generate", {
     method: "POST",
     headers: {
       'Accept': 'application/json',
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: "dolphin-mistral:latest",
+      model: "llava:13b",
       prompt: "Тебя только что добавили в группу в телеграме, поздоровайся со всеми",
       stream: false,
     })
@@ -152,7 +164,7 @@ async function greetMembers(message: Msg) {
 }
 
 const server = Bun.serve({
-  port: 1400,
+  port: Bun.env.PORT || 1400,
   async fetch(req) {
     try {
       const tgBody: TgBody = await req.json()
@@ -164,11 +176,12 @@ const server = Bun.serve({
           text
         }
         message && await generateAnswerToUser(message);
-      } else if (tgBody?.message?.text?.includes("@pk_mnbvc_bot")
-        || tgBody?.message?.caption?.includes("@pk_mnbvc_bot")
-        || tgBody?.message?.reply_to_message?.from.username === "pk_mnbvc_bot") {
+      } else if (tgBody?.message?.text?.includes(`@${Bun.env.BOT_NAME}`)
+        || tgBody?.message?.caption?.includes(`@${Bun.env.BOT_NAME}`)
+        || tgBody?.message?.reply_to_message?.from.username === `@${Bun.env.BOT_NAME}`) {
         const text = tgBody.message?.text || tgBody.message?.caption;
-        const cleanText = text?.replace(/@pk_mnbvc_bot/g,'');
+        let re = new RegExp(String.raw`/${Bun.env.BOT_NAME}/`, "g")
+        const cleanText = text?.replace(re,'');
         const message: Msg = {
           ...tgBody?.message,
           text: cleanText

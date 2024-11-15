@@ -1,4 +1,4 @@
-# pk-bot
+# tg-ollama-bot-server
 
 To install dependencies:
 

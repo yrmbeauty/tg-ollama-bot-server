@@ -1,5 +1,5 @@
 {
-  "name": "pk-bot",
+  "name": "tg-ollama-bot-server",
   "module": "index.ts",
   "type": "module",
   "scripts": {
